@@ -222,3 +222,13 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
+
+# data, models and experiment logs (too big for git)
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+mlruns/
+mlflow.db
+*.onnx
+*.pt
