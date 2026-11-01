@@ -1,8 +1,10 @@
-# Casting Defect Detection
+# Visual Defect Detection for Manufacturing
 
 [![tests](https://github.com/RutvikMendpara/Visual-defect-detection-for-manufacturing/actions/workflows/tests.yml/badge.svg)](https://github.com/RutvikMendpara/Visual-defect-detection-for-manufacturing/actions/workflows/tests.yml)
 
-Classifies cast submersible pump impellers as OK or defective from a top-view photo, fast enough to run on a normal CPU. Fine-tuned ResNet-18, trained on the [Kaggle casting dataset](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product).
+Spots defective parts from a photo, fast enough to run on a normal CPU next to a production line.
+
+The first use case is cast submersible pump impellers: each part is labelled OK or defective from a top-view photo. Fine-tuned ResNet-18, trained on the [Kaggle casting dataset](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product).
 
 Done so far: leakage check, clean splits, training, evaluation, INT8 ONNX export, FastAPI service in Docker, Gradio demo, drift monitoring, tests and CI. Still to come: anomaly detection (PatchCore).
 

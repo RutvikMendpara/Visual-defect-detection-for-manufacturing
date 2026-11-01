@@ -112,7 +112,7 @@ Simulated on the test set (`monitoring.txt`):
 
 Every prediction is logged to `logs/predictions.jsonl`, which `monitor check` reads.
 
-For Hugging Face Spaces: `scripts/build_space.sh` puts together `build/space/` (app, inference code, INT8 model, examples, requirements, Space README). Then `uvx hf auth login` and `uvx hf upload <username>/casting-defect-inspection build/space . --repo-type space`. On a free Space the logs and feedback folder are wiped on restart, so for real use they'd need to go to a dataset repo or a database.
+For Hugging Face Spaces: `scripts/build_space.sh` puts together `build/space/` (app, inference code, INT8 model, examples, requirements, Space README). Then `uvx hf auth login` and `uvx hf upload <username>/visual-defect-detection build/space . --repo-type space`. On a free Space the logs and feedback folder are wiped on restart, so for real use they'd need to go to a dataset repo or a database.
 
 ## Tests and CI
 

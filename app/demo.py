@@ -89,9 +89,9 @@ def conveyor(delay):
         time.sleep(delay)
 
 
-with gr.Blocks(title="Casting defect inspection") as demo:
+with gr.Blocks(title="Visual Defect Detection for Manufacturing") as demo:
     gr.Markdown(
-        "# Casting defect inspection\n"
+        "# Visual Defect Detection for Manufacturing\n"
         "Classifies cast pump impellers as OK or defective from a top-view photo. "
         "The red overlay shows where the model looked. ResNet-18, INT8 ONNX, runs on CPU.\n\n"
         "This assists an inspector, it doesn't replace one. Trained on one camera and lighting setup.\n\n"

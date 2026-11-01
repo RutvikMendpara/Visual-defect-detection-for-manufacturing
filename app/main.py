@@ -53,7 +53,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Casting defect inspection", version="1.0", lifespan=lifespan)
+app = FastAPI(title="Visual Defect Detection for Manufacturing", version="1.0", lifespan=lifespan)
 
 
 def log_prediction(endpoint, filename, result, total_ms, img):

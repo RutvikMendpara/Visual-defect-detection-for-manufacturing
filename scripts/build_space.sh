@@ -2,7 +2,7 @@
 # Put together a folder that can be uploaded as a Hugging Face Space.
 #   scripts/build_space.sh
 #   uvx hf auth login
-#   uvx hf upload <your-username>/casting-defect-inspection build/space . --repo-type space
+#   uvx hf upload <your-username>/visual-defect-detection build/space . --repo-type space
 set -euo pipefail
 
 out=build/space
@@ -19,7 +19,7 @@ grep -E "^(onnxruntime|numpy|pillow)==" app/requirements.txt > "$out/requirement
 
 cat > "$out/README.md" <<README
 ---
-title: Casting Defect Inspection
+title: Visual Defect Detection for Manufacturing
 sdk: gradio
 sdk_version: $gradio_version
 app_file: app.py
