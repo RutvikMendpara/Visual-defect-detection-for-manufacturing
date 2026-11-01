@@ -1,8 +1,10 @@
 # Casting Defect Detection
 
+[![tests](https://github.com/RutvikMendpara/Visual-defect-detection-for-manufacturing/actions/workflows/tests.yml/badge.svg)](https://github.com/RutvikMendpara/Visual-defect-detection-for-manufacturing/actions/workflows/tests.yml)
+
 Classifies cast submersible pump impellers as OK or defective from a top-view photo, fast enough to run on a normal CPU. Fine-tuned ResNet-18, trained on the [Kaggle casting dataset](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product).
 
-Work in progress. Done so far: leakage check, clean splits, training, evaluation. Still to come: anomaly detection (PatchCore), ONNX export, API and demo, CI.
+Done so far: leakage check, clean splits, training, evaluation, INT8 ONNX export, FastAPI service in Docker, Gradio demo, drift monitoring, tests and CI. Still to come: anomaly detection (PatchCore).
 
 ## The problem
 
@@ -23,9 +25,10 @@ Positive class = defective. Threshold chosen on the validation split and applied
 | Confusion matrix | report always | missed 0 of 156, flagged 0 of 102 |
 | F1 | report only | 1.000 |
 | ROC-AUC | ≥ 0.99 | 1.000 |
-| CPU latency | median < 50 ms | 11.6 ms median, 12.4 ms p95 |
+| CPU latency, deployed INT8 model | median < 50 ms | 4.3 ms median, 4.8 ms p95 (10.3 ms on 1 thread) |
+| Through the API (Docker) | | 7.9 ms median, 8.6 ms p95 |
 
-Latency: Apple M4 CPU, PyTorch eager, batch 1, preprocessing included (load, resize, normalise), 10 warm-up images excluded, 500 timed.
+Latency: Apple M4 CPU, batch 1, file read + preprocessing included, 10 warm-up images excluded, 500 timed. The deployed model is INT8 ONNX (11 MB). It has its own threshold chosen on val, because quantization shifts the scores. PyTorch FP32 vs ONNX FP32 vs INT8 in [reports/deployment.md](reports/deployment.md).
 
 These numbers look too good, so a few caveats:
 
@@ -61,7 +64,31 @@ uv run python -m defect_detection.evaluate gradcam   --run models/resnet18-lr0.0
 
 # see runs
 uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
+
+# export, quantize, benchmark, pick the deployed model
+uv run python -m defect_detection.export onnx     --run models/resnet18-lr0.001
+uv run python -m defect_detection.export quantize --run models/resnet18-lr0.001
+uv run python -m defect_detection.export bench    --run models/resnet18-lr0.001
+uv run python -m defect_detection.export deploy   --run models/resnet18-lr0.001 --file model.int8.onnx
+uv run python -m defect_detection.monitor reference
+
+# tests
+uv run pytest
 ```
+
+## Running the service
+
+Needs `models/deploy/` from the export step above.
+
+```bash
+docker build -t casting-inspection .
+docker run --rm -p 8000:8000 casting-inspection
+curl -F "file=@part.jpeg;type=image/jpeg" localhost:8000/predict
+```
+
+API docs at http://localhost:8000/docs. `POST /predict` returns the label, defect probability, threshold and latency, `POST /predict/heatmap` adds the heatmap, `GET /health` checks the model is loaded. Bad files get a clear 4xx error.
+
+Demo: `uv run python app/demo.py`, then http://localhost:7860. Upload a photo or use the samples, run the conveyor simulation, flag wrong predictions. Check the prediction log for drift with `uv run python -m defect_detection.monitor check`.
 
 Everything uses seed 42, so training gives the same numbers again (tested on Apple MPS).
 
@@ -74,8 +101,17 @@ src/defect_detection/
   train.py       fine-tuning loop
   evaluate.py    threshold, test metrics, latency, Grad-CAM
   tracking.py    MLflow setup
+  export.py      ONNX export, INT8 quantization, benchmark
+  inference.py   ONNX inference without torch, used by the API and demo
+  monitor.py     drift checks on the prediction logs
+app/
+  main.py        FastAPI service
+  demo.py        Gradio demo
+  examples/      sample test images for the demo
 data/splits.csv  the train/val/test split used everywhere
-reports/         leakage report, experiments, evaluation, figures
+reports/         leakage, experiments, evaluation, deployment, figures
+scripts/         Hugging Face Space build
+tests/           pytest, runs in CI on every push
 notebooks/       EDA only
 ```
 
@@ -84,12 +120,14 @@ notebooks/       EDA only
 - [DATA.md](DATA.md): dataset, leakage check, splits, augmentation choices
 - [reports/experiments.md](reports/experiments.md): model choice, training runs and what each one showed
 - [reports/evaluation.md](reports/evaluation.md): threshold, test results, error analysis, Grad-CAM
+- [reports/deployment.md](reports/deployment.md): ONNX and INT8 benchmark, API, Docker, monitoring, demo, tests
 
 ## Limitations
 
 - Trained on one camera, one lighting setup. A new setup needs fresh images and recalibration before use.
 - The validation set is saturated (every run separates it perfectly), so it can't tell similar models apart anymore.
 - The dataset is about 60% defective. A real line has far fewer defects, which would lower precision.
+- Monitoring only checks input stats and confidence. Without labels from the line it can't measure accuracy directly, that needs the flagged images to be reviewed.
 - Licence of the dataset is CC BY-NC-ND 4.0, so this is for learning and portfolio use only.
 
 MVTec AD targets will be set separately per category later.

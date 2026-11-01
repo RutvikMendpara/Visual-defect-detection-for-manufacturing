@@ -234,3 +234,7 @@ mlflow.db
 *.onnx
 *.pt
 
+
+# demo and api runtime output
+logs/
+feedback/

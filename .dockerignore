@@ -1,0 +1,13 @@
+.git
+.venv
+data
+models/*
+!models/deploy
+mlruns
+mlflow.db
+notebooks
+reports
+tests
+feedback
+logs
+**/__pycache__
