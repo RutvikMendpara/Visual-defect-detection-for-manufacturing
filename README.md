@@ -123,6 +123,7 @@ notebooks/       EDA only
 - [reports/experiments.md](reports/experiments.md): model choice, training runs and what each one showed
 - [reports/evaluation.md](reports/evaluation.md): threshold, test results, error analysis, Grad-CAM
 - [reports/deployment.md](reports/deployment.md): ONNX and INT8 benchmark, API, Docker, monitoring, demo, tests
+- [PAPER.md](PAPER.md): the whole project written up as a short paper
 
 ## Limitations
 
