@@ -1,0 +1,13 @@
+rotation step 5 deg, mirror included, 256-bit pHash
+cut-off: distance <= 8
+
+cut-off  leaked test images  originals flagged (false alarms)
+      4               36.9%                             0.2%
+      6               56.1%                             1.0%
+      8               71.7%                             1.6%
+     10               82.2%                             3.2%
+     12               88.7%                             4.9%
+     16               94.8%                             9.4%
+defective: 281 of 453 leaked
+ok: 232 of 262 leaked
+total: 513 of 715 (71.7%)

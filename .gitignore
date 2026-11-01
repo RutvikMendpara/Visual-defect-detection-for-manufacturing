@@ -226,6 +226,7 @@ __marimo__/
 # data, models and experiment logs (too big for git)
 data/*
 !data/.gitkeep
+!data/splits.csv
 models/*
 !models/.gitkeep
 mlruns/
