@@ -232,3 +232,6 @@ mlruns/
 mlflow.db
 *.onnx
 *.pt
+
+
+DATA.md
