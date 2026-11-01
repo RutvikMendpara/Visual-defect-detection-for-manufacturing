@@ -79,6 +79,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--image-size", type=int, default=IMAGE_SIZE)
     parser.add_argument("--no-augment", dest="augment", action="store_false")
+    parser.add_argument("--jitter", type=float, default=0.2, help="brightness/contrast jitter strength")
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--run-name", default=None)
     parser.add_argument("--out-dir", type=Path, default=Path("models"))
@@ -88,12 +89,15 @@ def parse_args():
 def main():
     args = parse_args()
     run_name = args.run_name or f"{args.model}-lr{args.lr:g}" + ("" if args.augment else "-noaug")
+    if args.augment and args.jitter != 0.2:
+        run_name += f"-jitter{args.jitter:g}"
     out = args.out_dir / run_name
     out.mkdir(parents=True, exist_ok=True)
 
     set_seed(args.seed)
     device = pick_device()
-    train_loader = make_loader("train", args.batch_size, image_size=args.image_size, augment=args.augment)
+    train_loader = make_loader("train", args.batch_size, image_size=args.image_size,
+                               augment=args.augment, jitter=args.jitter)
     val_loader = make_loader("val", 64, image_size=args.image_size)
 
     # one output logit for "defective", the backbone keeps its ImageNet weights

@@ -114,13 +114,13 @@ def to_tensor():
     ]
 
 
-def train_transform(size=IMAGE_SIZE):
+def train_transform(size=IMAGE_SIZE, jitter=0.2):
     # reasons for each one are in DATA.md
     return T.Compose([
         T.Resize(size),
         RandomRotateShift(),
         T.RandomHorizontalFlip(),
-        T.ColorJitter(brightness=0.2, contrast=0.2),
+        T.ColorJitter(brightness=jitter, contrast=jitter),
         *to_tensor(),
     ])
 
@@ -146,9 +146,10 @@ class CastingDataset(Dataset):
         return self.transform(img), row["label"], row["path"]
 
 
-def make_loader(split, batch_size=32, num_workers=0, image_size=IMAGE_SIZE, augment=True, **kwargs):
+def make_loader(split, batch_size=32, num_workers=0, image_size=IMAGE_SIZE, augment=True, jitter=0.2,
+                **kwargs):
     train = split == "train"
-    transform = train_transform(image_size) if train and augment else eval_transform(image_size)
+    transform = train_transform(image_size, jitter) if train and augment else eval_transform(image_size)
     dataset = CastingDataset(split, transform, **kwargs)
     generator = torch.Generator().manual_seed(SEED)
     return DataLoader(dataset, batch_size=batch_size, shuffle=train, num_workers=num_workers,
