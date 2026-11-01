@@ -146,9 +146,10 @@ class CastingDataset(Dataset):
         return self.transform(img), row["label"], row["path"]
 
 
-def make_loader(split, batch_size=32, num_workers=0, **kwargs):
+def make_loader(split, batch_size=32, num_workers=0, image_size=IMAGE_SIZE, augment=True, **kwargs):
     train = split == "train"
-    dataset = CastingDataset(split, train_transform() if train else eval_transform(), **kwargs)
+    transform = train_transform(image_size) if train and augment else eval_transform(image_size)
+    dataset = CastingDataset(split, transform, **kwargs)
     generator = torch.Generator().manual_seed(SEED)
     return DataLoader(dataset, batch_size=batch_size, shuffle=train, num_workers=num_workers,
                       generator=generator, persistent_workers=num_workers > 0)
