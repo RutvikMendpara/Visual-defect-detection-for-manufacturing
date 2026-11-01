@@ -1,9 +1,10 @@
-"""Train/val/test split built from the 512x512 originals.
+"""Splits, Dataset and transforms for the 512x512 originals.
 
 The official 300x300 split leaks (see DATA.md), so splits are made from the
 originals instead, keeping near-duplicate photos together in one split
 
-Run with: uv run python -m defect_detection.data
+Build the split file:  uv run python -m defect_detection.data split
+Check a batch:         uv run python -m defect_detection.data check
 """
 
 import argparse
@@ -12,11 +13,22 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
+import torch
+from PIL import Image
 from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, Dataset
+from torchvision.transforms import v2 as T
 
 from defect_detection.leakage import ORIGINALS, distance_matrix, hash_rotations, label_of, list_images
 
 SEED = 42
+DATA_DIR = Path("data/raw")
+SPLIT_FILE = Path("data/splits.csv")
+IMAGE_SIZE = 224
+
+# the pretrained weights were trained on ImageNet images normalised with these
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 def group_near_duplicates(paths, threshold=8):
@@ -71,11 +83,130 @@ def load_splits(path):
         return [{**row, "label": int(row["label"])} for row in csv.DictReader(f)]
 
 
+class RandomRotateShift:
+    """Rotate by any angle and shift a few pixels.
+
+    Rotating leaves empty corners. The default black fill (or any flat colour) leaves
+    a visible square edge that only training images would have, so the image is
+    padded by repeating its edge pixels first and cropped back afterwards.
+    """
+
+    def __init__(self, max_shift=0.02):
+        self.max_shift = max_shift
+
+    def __call__(self, img):
+        w, h = img.size
+        pad = w // 4  # enough to cover the corners at 45 degrees plus the shift
+        padded = Image.fromarray(np.pad(np.asarray(img), pad, mode="edge"))
+        angle = torch.empty(1).uniform_(0, 360).item()
+        limit = self.max_shift * w
+        dx, dy = torch.empty(2).uniform_(-limit, limit).round().int().tolist()
+        rotated = padded.rotate(angle, Image.BILINEAR, translate=(dx, dy))
+        return rotated.crop((pad, pad, pad + w, pad + h))
+
+
+def to_tensor():
+    return [
+        T.Grayscale(num_output_channels=3),
+        T.ToImage(),
+        T.ToDtype(torch.float32, scale=True),
+        T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+    ]
+
+
+def train_transform(size=IMAGE_SIZE):
+    # reasons for each one are in DATA.md
+    return T.Compose([
+        T.Resize(size),
+        RandomRotateShift(),
+        T.RandomHorizontalFlip(),
+        T.ColorJitter(brightness=0.2, contrast=0.2),
+        *to_tensor(),
+    ])
+
+
+def eval_transform(size=IMAGE_SIZE):
+    return T.Compose([T.Resize(size), *to_tensor()])
+
+
+class CastingDataset(Dataset):
+    def __init__(self, split, transform, split_file=SPLIT_FILE, data_dir=DATA_DIR):
+        self.rows = [r for r in load_splits(split_file) if r["split"] == split]
+        if not self.rows:
+            raise ValueError(f"no rows for split {split!r} in {split_file}")
+        self.transform = transform
+        self.data_dir = Path(data_dir)
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __getitem__(self, i):
+        row = self.rows[i]
+        img = Image.open(self.data_dir / row["path"]).convert("L")
+        return self.transform(img), row["label"], row["path"]
+
+
+def make_loader(split, batch_size=32, num_workers=0, **kwargs):
+    train = split == "train"
+    dataset = CastingDataset(split, train_transform() if train else eval_transform(), **kwargs)
+    generator = torch.Generator().manual_seed(SEED)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=train, num_workers=num_workers,
+                      generator=generator, persistent_workers=num_workers > 0)
+
+
+def unnormalize(x):
+    mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
+    std = torch.tensor(IMAGENET_STD).view(3, 1, 1)
+    return (x * std + mean).clamp(0, 1)[0]
+
+
+def save_augmented_examples(out, n_images=4, n_augments=5):
+    import matplotlib.pyplot as plt
+
+    plain = CastingDataset("train", eval_transform())
+    augmented = CastingDataset("train", train_transform())
+    picks = torch.randperm(len(plain), generator=torch.Generator().manual_seed(SEED))[:n_images]
+
+    fig, axes = plt.subplots(n_images, n_augments + 1, figsize=(2 * (n_augments + 1), 2.2 * n_images))
+    for row, i in enumerate(picks.tolist()):
+        img, label, path = plain[i]
+        axes[row, 0].imshow(unnormalize(img), cmap="gray", vmin=0, vmax=1)
+        axes[row, 0].set_title(f"{'defective' if label else 'ok'} (plain)", fontsize=8)
+        for col in range(1, n_augments + 1):
+            axes[row, col].imshow(unnormalize(augmented[i][0]), cmap="gray", vmin=0, vmax=1)
+        for ax in axes[row]:
+            ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(out, dpi=100)
+    plt.close(fig)
+
+
+def check(batch_size=32):
+    torch.manual_seed(SEED)
+    for split in ["train", "val", "test"]:
+        images, labels, paths = next(iter(make_loader(split, batch_size)))
+        counts = Counter(labels.tolist())
+        print(f"{split:<5} batch {tuple(images.shape)} {images.dtype}, "
+              f"range {images.min():.2f}..{images.max():.2f}, "
+              f"{counts[1]} defective / {counts[0]} ok, first: {paths[0]}")
+    out = Path("reports/figures/augmented_examples.png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    save_augmented_examples(out)
+    print(f"wrote {out}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
-    parser.add_argument("--out", type=Path, default=Path("data/splits.csv"))
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+    split_cmd = sub.add_parser("split", help="build the split file")
+    split_cmd.add_argument("--data-dir", type=Path, default=DATA_DIR)
+    split_cmd.add_argument("--out", type=Path, default=SPLIT_FILE)
+    sub.add_parser("check", help="load a batch and save augmented examples")
     args = parser.parse_args()
+
+    if args.command == "check":
+        check()
+        return
 
     rows = make_splits(args.data_dir)
     save_splits(rows, args.out)
